@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "repohone.bootstrap/v1",
+  "title": "RepoHone historical bootstrap candidates",
+  "description": "Deterministically collected historical conventions. These are review candidates and are never adopted by collection alone.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "schema_version", "contract_version", "checkout_id",
+    "repository_id", "collected_at", "adopted", "note",
+    "sources_unavailable", "collection_errors", "review_set",
+    "ranking_basis", "candidates"
+  ],
+  "properties": {
+    "schema": {"const": "repohone.bootstrap/v1"},
+    "schema_version": {"const": 1},
+    "contract_version": {"type": "string", "minLength": 1},
+    "checkout_id": {"type": "string", "minLength": 1},
+    "repository_id": {"type": ["string", "null"]},
+    "collected_at": {"type": "string", "format": "date-time"},
+    "adopted": {"const": false},
+    "note": {"type": "string", "minLength": 1, "maxLength": 300},
+    "sources_unavailable": {
+      "type": "array",
+      "items": {"type": "string", "maxLength": 300}
+    },
+    "collection_errors": {
+      "type": "array",
+      "items": {"type": "string", "maxLength": 300}
+    },
+    "review_set": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^cand_[0-9a-f]{12}$"}
+    },
+    "ranking_basis": {"type": "string", "minLength": 1, "maxLength": 300},
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "source", "statement", "evidence", "occurrences"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^cand_[0-9a-f]{12}$"},
+          "source": {
+            "enum": ["instruction-file", "revert", "fixup", "custom-check", "pr-review", "ci-failure"]
+          },
+          "statement": {"type": "string", "minLength": 1, "maxLength": 300},
+          "evidence": {
+            "type": "array",
+            "items": {"type": "string", "maxLength": 300}
+          },
+          "occurrences": {"type": "integer", "minimum": 1}
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,680 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "repohone.proposal/v1",
+  "title": "RepoHone improvement proposal",
+  "description": "Phase 5: a mechanism selected from what the repository already provides (Phase 4) to carry the property a diagnosis identified (Phase 3), validated against the authentic states the project actually produced. Every accepted improvement is an experiment (ARCHITECTURE 26) and must state how to undo it (ARCHITECTURE 27).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_version",
+    "contract_version",
+    "proposal_id",
+    "diagnosis_id",
+    "session_id",
+    "checkout_id",
+    "created_at",
+    "state",
+    "outcome",
+    "problem",
+    "required_property",
+    "fingerprint",
+    "mechanism",
+    "change",
+    "expected_effect",
+    "friction",
+    "privacy",
+    "validation",
+    "measurement",
+    "rollback",
+    "repohone_runtime_required",
+    "failure"
+  ],
+  "properties": {
+    "schema": {
+      "const": "repohone.proposal/v1"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "contract_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "proposal_id": {
+      "type": "string",
+      "pattern": "^prop_[0-9a-f]{8,}$"
+    },
+    "diagnosis_id": {
+      "type": "string",
+      "pattern": "^dx_[0-9a-f]{8,}$"
+    },
+    "session_id": {
+      "type": "string",
+      "pattern": "^rh_[0-9a-f]{8,}$"
+    },
+    "checkout_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "state": {
+      "enum": [
+        "candidate",
+        "approved",
+        "applied",
+        "observing",
+        "effective",
+        "uncertain",
+        "ineffective",
+        "harmful",
+        "superseded",
+        "obsolete",
+        "rejected",
+        "partially_applied",
+        "applying",
+        "rolling_back",
+        "unresolved"
+      ],
+      "description": "ARCHITECTURE 26. A previously approved improvement is not assumed permanently useful. 'partially_applied' means a write failed mid-apply and some files could not be restored: rollback.files lists exactly what did land. 'applying' and 'rolling_back' are durable markers written before the first file is touched, so an interrupted run is identifiable and can be reconciled rather than looking like nothing happened."
+    },
+    "outcome": {
+      "enum": [
+        "SUCCESS",
+        "NO_MECHANISM_AVAILABLE",
+        "VALIDATION_REJECTED",
+        "INSUFFICIENT_EVIDENCE",
+        "MODEL_UNAVAILABLE",
+        "INTERRUPTED",
+        "INVALID_OUTPUT"
+      ],
+      "description": "ARCHITECTURE 12.3. VALIDATION_REJECTED is retained as failed-analysis evidence and is never actionable."
+    },
+    "problem": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 600
+    },
+    "required_property": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 600
+    },
+    "fingerprint": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "fingerprint_id",
+            "area",
+            "behavior",
+            "sessions"
+          ],
+          "properties": {
+            "fingerprint_id": {
+              "type": "string",
+              "pattern": "^fp_[0-9a-f]{8,}$"
+            },
+            "area": {
+              "type": "string"
+            },
+            "behavior": {
+              "type": "string"
+            },
+            "sessions": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      ]
+    },
+    "mechanism": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "kind",
+            "name",
+            "tier",
+            "why_this",
+            "why_existing_did_not_help",
+            "alternatives_considered",
+            "deterministic",
+            "cost"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^mech_[0-9a-f]{8,}$"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "tier": {
+              "enum": [
+                "existing-project",
+                "existing-ecosystem",
+                "project-owned-custom"
+              ]
+            },
+            "why_this": {
+              "type": "string",
+              "maxLength": 600
+            },
+            "why_existing_did_not_help": {
+              "type": "string",
+              "maxLength": 600,
+              "description": "LEARNING_PLAN 11 pass 2 - load-bearing. A proposal that cannot explain why what already existed failed will manufacture improvements."
+            },
+            "alternatives_considered": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "description": "Including the simpler option that was rejected, and 'do nothing'."
+            },
+            "deterministic": {
+              "type": "boolean",
+              "description": "False for a mechanism that judges rather than decides \u2014 an agent instruction, skill or hook. A probabilistic gate can pass the bad state and fail the good one, so the maintainer is told before approving, not after."
+            },
+            "cost": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "What running it measured, when it was probed: duration, exit code, and whether the probe ran at all."
+            }
+          }
+        }
+      ]
+    },
+    "change": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "summary",
+            "files"
+          ],
+          "properties": {
+            "summary": {
+              "type": "string",
+              "maxLength": 600
+            },
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "action",
+                  "sha256",
+                  "baseline_sha256",
+                  "bytes",
+                  "baseline_mode"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 400
+                  },
+                  "action": {
+                    "enum": [
+                      "create",
+                      "modify"
+                    ]
+                  },
+                  "sha256": {
+                    "$comment": "of the proposed contents",
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "bytes": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "baseline_sha256": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "pattern": "^[0-9a-f]{64}$",
+                    "description": "What the target file contained when the proposal was validated. Applying refuses when it no longer matches: the validated result would not describe what actually lands."
+                  },
+                  "baseline_mode": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "description": "The target's permission bits when the proposal was validated. Verified before applying: a check approved as executable that has since lost that bit would not land the behaviour that was shown to work."
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "expected_effect": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 600
+    },
+    "friction": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 400
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "adds_model_egress",
+        "note",
+        "egress"
+      ],
+      "properties": {
+        "adds_model_egress": {
+          "type": "boolean",
+          "description": "ARCHITECTURE 13 - RepoHone must never quietly convert a deterministic project into one that sends code to an external reviewer."
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 600
+        },
+        "egress": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "description": "ARCHITECTURE 13. Required whenever adds_model_egress is true: what leaves the machine, which provider receives it, what triggers it, how often, and what it costs. A maintainer cannot consent to a boolean.",
+          "properties": {
+            "what_leaves": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400
+            },
+            "provider": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400
+            },
+            "when": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400
+            },
+            "frequency": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400
+            },
+            "cost": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400
+            }
+          }
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "performed",
+        "attributable",
+        "rejects_problematic",
+        "accepts_repaired",
+        "pre_correction",
+        "post_correction",
+        "occurrences",
+        "working_tree_unchanged",
+        "notes",
+        "estimate"
+      ],
+      "properties": {
+        "performed": {
+          "type": "boolean"
+        },
+        "rejects_problematic": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "The candidate mechanism flags the state the project actually produced. Stronger than a synthetic fixture: it proves the mechanism would have caught the real mistake."
+        },
+        "accepts_repaired": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "pre_correction": {
+          "$ref": "#/$defs/state"
+        },
+        "post_correction": {
+          "$ref": "#/$defs/state"
+        },
+        "working_tree_unchanged": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 400
+          }
+        },
+        "attributable": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "Whether the CHANGE is what catches the mistake. The mechanism is first run WITHOUT the proposed change: if it already flags the problematic state, the change is not responsible and the proposal must not take credit for the detection."
+        },
+        "occurrences": {
+          "type": "array",
+          "description": "Recurrence is what justified acting, so every captured occurrence of the fingerprint is checked, not only the one that produced the diagnosis.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "session_id",
+              "caught",
+              "false_positive",
+              "note"
+            ],
+            "properties": {
+              "session_id": {
+                "type": "string"
+              },
+              "checkout_id": {
+                "type": ["string", "null"],
+                "description": "Checkout holding this occurrence; together with session_id it identifies the historical evidence."
+              },
+              "caught": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "false_positive": {
+                "type": [
+                  "boolean",
+                  "null"
+                ],
+                "description": "True when the candidate fires on a state the developer had already accepted."
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 300
+              }
+            }
+          }
+        },
+        "estimate": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "Present only for a mechanism that cannot be executed \u2014 advice an agent reads rather than a check that runs. It is graded against labelled past sessions by a model, so it reports raw misfire counts but no false-positive rate because controls are not verified clean work; it is never a demonstration that the mechanism catches anything."
+        }
+      }
+    },
+    "measurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_fingerprint",
+        "baseline_sessions",
+        "signal"
+      ],
+      "properties": {
+        "target_fingerprint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "baseline_sessions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "signal": {
+          "type": "string",
+          "maxLength": 400
+        }
+      }
+    },
+    "rollback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "files",
+        "instructions"
+      ],
+      "properties": {
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "existed",
+              "previous_sha256",
+              "previous_mode"
+            ],
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "existed": {
+                "type": "boolean"
+              },
+              "previous_sha256": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "previous_mode": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "The file's permission bits before the change. Restored on rollback: a script that stops being executable does not behave as it did when the proposal was validated."
+              }
+            }
+          }
+        },
+        "instructions": {
+          "type": "string",
+          "maxLength": 600
+        }
+      }
+    },
+    "applied_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "repohone_runtime_required": {
+      "const": false,
+      "description": "ARCHITECTURE 25 - an accepted improvement must keep working if RepoHone is removed. A proposal requiring RepoHone at runtime is not a valid proposal."
+    },
+    "failure": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "maxLength": 1000
+            }
+          }
+        }
+      ]
+    },
+    "unresolved_paths": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Paths RepoHone changed and cannot undo \u2014 a write that left the repository, or a file that is neither its old nor its proposed content. While any remain, the proposal stays 'unresolved' and its backups are kept: they are the only copy of the original."
+    },
+    "stage_token": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Names the staging files this proposal writes beside its targets, so crash recovery removes only its own and never a developer's file that happens to share the prefix."
+    }
+  },
+  "$defs": {
+    "state": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "tree",
+            "ref"
+          ],
+          "properties": {
+            "source": {
+              "enum": [
+                "stop",
+                "prompt",
+                "stop_failure",
+                "session_end",
+                "accepted"
+              ],
+              "description": "LEARNING_PLAN 14 preference ladder. A type-ahead correction arrives at prompt/2 while the agent is still working, and an interrupted turn fires no Stop at all, so the fallbacks are what make validation run for the correction shapes that are hardest to capture."
+            },
+            "tree": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+            },
+            "ref": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "SUCCESS"
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "properties": {
+          "mechanism": {
+            "type": "object"
+          },
+          "change": {
+            "type": "object"
+          },
+          "required_property": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "description": "A successful proposal names a mechanism and a concrete change."
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "not": {
+              "const": "SUCCESS"
+            }
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "properties": {
+          "state": {
+            "enum": [
+              "rejected"
+            ]
+          }
+        },
+        "description": "Anything that did not succeed is rejected, never left as an applicable candidate (ARCHITECTURE 12.3: partial output is never a proposal)."
+      }
+    }
+  ]
+}

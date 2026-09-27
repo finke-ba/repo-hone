@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "repohone.rule_candidate/v1",
+  "title": "RepoHone rule candidate",
+  "description": "IMPLEMENTATION_PLAN Phase 2. A developer's explicit 'this is a project rule' statement, bound to the exact session it came from. Created locally with no model call; carries analysis consent for itself only and never authorizes changing the project (ARCHITECTURE 1.2).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_version",
+    "contract_version",
+    "candidate_id",
+    "checkout_id",
+    "session_id",
+    "created_at",
+    "state",
+    "statement",
+    "corrective_turn",
+    "evidence_refs",
+    "consent",
+    "diagnosis_id"
+  ],
+  "properties": {
+    "schema": {
+      "const": "repohone.rule_candidate/v1"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "contract_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^rule_[0-9a-f]{16}$"
+    },
+    "checkout_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The checkout this was marked in. Required, never inferred: a candidate that floats free of its checkout could be attributed to another worktree's session."
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The exact session the statement was made in. Resolved against this checkout's records, so a session belonging to another checkout does not match."
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "state": {
+      "enum": [
+        "marked",
+        "analysed",
+        "discarded"
+      ],
+      "description": "A candidate is never a rule. It is what the developer said, awaiting analysis it has already consented to."
+    },
+    "statement": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "corrective_turn": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "description": "Which turn holds the correction, when the developer names it. Null means unidentified, never inferred from adjacency: authentic validation is unavailable rather than wrong (ARCHITECTURE 14)."
+    },
+    "evidence_refs": {
+      "type": "array",
+      "description": "Pointers, not copies. The candidate records which captured evidence was resolved, so analysis re-reads it from the snapshot rather than from a stored transcript.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "ref",
+          "estimated_tokens"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ref": {
+            "type": "string",
+            "minLength": 1
+          },
+          "estimated_tokens": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Bytes of model input, not provider tokens. The v1 field name predates the correction; a token is at least one byte, so the value is always under ARCHITECTURE 12's token maximum."
+          }
+        }
+      }
+    },
+    "consent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "analysis",
+        "scope",
+        "authorizes_apply"
+      ],
+      "properties": {
+        "analysis": {
+          "const": true
+        },
+        "scope": {
+          "const": "this candidate only"
+        },
+        "authorizes_apply": {
+          "const": false,
+          "description": "ARCHITECTURE 1.2 \u2014 analysis consent is not application consent."
+        }
+      }
+    },
+    "diagnosis_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

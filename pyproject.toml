@@ -1,0 +1,88 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "repohone"
+dynamic = ["version"]
+description = "A project-specific self-improving engineering harness for LLM coding agents"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Boris Finkelshteyn" }]
+requires-python = ">=3.12"
+dependencies = []
+keywords = ["claude-code", "coding-agents", "llm", "developer-tools", "linting"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Quality Assurance",
+]
+
+[project.urls]
+Homepage = "https://github.com/finke-ba/repo-hone"
+Issues = "https://github.com/finke-ba/repo-hone/issues"
+
+[project.optional-dependencies]
+test = ["jsonschema>=4.0"]
+dev = ["jsonschema>=4.0", "ruff==0.16.9", "mypy==2.3.1"]
+
+[project.scripts]
+repohone = "repohone.cli:main"
+repohone-hook = "repohone.hook:run"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.dynamic]
+version = { attr = "repohone.CORE_VERSION" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["repohone*"]
+
+[tool.setuptools.package-data]
+repohone = ["skills/*/SKILL.md", "schemas/*.json"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF013", "RUF100"]
+# Style preferences the code does not follow.
+ignore = [
+    "E701",
+    "E731",
+    "SIM102",
+    "SIM105",
+    "SIM108",
+    "SIM117",
+    "UP031",
+    "UP006",   # the code uses typing.List/Optional; migrating is a separate change
+    "UP035",
+    "UP045",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Test modules must import `isolation` before RepoHone, so imports cannot sit at the top.
+"tests/*" = ["E402"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["repohone"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["src"]
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unused_configs = true
+no_implicit_optional = true
+check_untyped_defs = true

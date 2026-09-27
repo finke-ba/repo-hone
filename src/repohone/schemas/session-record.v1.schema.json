@@ -1,0 +1,948 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "repohone.session/v1",
+  "title": "RepoHone session record (V1)",
+  "description": "One record per coding-agent session, per checkout. Machine-readable shape only: ARCHITECTURE.md owns the semantics, and this schema implements them without redefining them. Capture writes this record during the session; reconciliation fills its phase-two fields later. Analysis output — correction classes, fingerprints, suppression findings, diagnoses — lives in separate records keyed by (session_id, checkout_id), so a session record stays immutable evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_version",
+    "contract_version",
+    "session_id",
+    "host",
+    "lifecycle",
+    "capture",
+    "agent",
+    "models",
+    "developer",
+    "repository",
+    "turns",
+    "session_end_snapshots",
+    "transcript",
+    "labels",
+    "reconciliation",
+    "extensions"
+  ],
+  "properties": {
+    "schema": {
+      "const": "repohone.session/v1"
+    },
+    "schema_version": {
+      "const": 1,
+      "description": "How this JSON record is shaped. A reader that does not support this value must fail clearly or skip explicitly; it must never guess field semantics. Incompatible changes produce session-record.v2.schema.json."
+    },
+    "contract_version": {
+      "type": "string",
+      "description": "Which ARCHITECTURE.md semantic interpretation produced this record. A supported shape carrying unsupported newer semantics must refuse semantic analysis unless an explicit migration exists."
+    },
+    "session_id": {
+      "type": "string",
+      "pattern": "^rh_[0-9a-f]{8,}$",
+      "description": "RepoHone session identity, derived as rh_ + stable_hash(host, host_session_id) so independent hooks compute it without coordination. This is the id session-sensitive tools take. It is NOT the agent-native id — see host.session_id."
+    },
+    "host": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "session_id"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Coding agent host, e.g. claude-code or codex."
+        },
+        "session_id": {
+          "type": "string",
+          "description": "Agent-native session identifier, as supplied by the host."
+        }
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "started_at",
+        "ended_at",
+        "end_reason",
+        "reconciled_at",
+        "starts"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "observed",
+            "reconciled"
+          ],
+          "description": "observed = captured but the branch/PR outcome is not yet resolved; reconciled = outcome resolved. A session that ends without reconciliation stays observed — that is normal, not an error. Whether the host signalled session end is carried by ended_at and end_reason, not by a separate state."
+        },
+        "started_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "ended_at": {
+          "$ref": "#/$defs/nullableTimestamp",
+          "description": "Set when the host signalled session end. Null means the session was never cleanly closed."
+        },
+        "end_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reconciled_at": {
+          "$ref": "#/$defs/nullableTimestamp"
+        },
+        "starts": {
+          "type": "array",
+          "description": "Every session-start seen (startup, resume, clear, compact, fork). More than one entry means the session was resumed or restarted.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "at",
+              "source",
+              "cwd"
+            ],
+            "properties": {
+              "at": {
+                "$ref": "#/$defs/timestamp"
+              },
+              "source": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cwd": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "capture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "adapter",
+        "adapter_version",
+        "content_policy",
+        "cwds",
+        "errors"
+      ],
+      "properties": {
+        "adapter": {
+          "type": "string",
+          "description": "Host adapter that produced this record."
+        },
+        "adapter_version": {
+          "type": "string"
+        },
+        "content_policy": {
+          "enum": [
+            "redacted",
+            "hash_only"
+          ],
+          "description": "redacted = text stored after secret redaction; hash_only = only hashes and lengths stored."
+        },
+        "cwds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true,
+          "description": "Every repository root this record saw events from. A different root means a different store, so the session is split across records; join those on (session_id, turns[].logical_turn_id)."
+        },
+        "errors": {
+          "type": "array",
+          "description": "Capture failures that degraded this record rather than losing it. Bounded to the most recent entries.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "at",
+              "event",
+              "error"
+            ],
+            "properties": {
+              "at": {
+                "$ref": "#/$defs/timestamp"
+              },
+              "event": {
+                "type": "string"
+              },
+              "error": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "models": {
+      "type": "array",
+      "description": "Session-level model observations in order; a model applies from from_turn until the next observation. Model identity is recorded only when the host exposes it reliably — unobserved is valid and is represented by an empty array and null turns[].model. Model segmentation is a confounder-control dimension applied to sessions with known identity, not a prerequisite for any metric. Prefer turns[].model, which is observed per turn.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "model",
+          "from_turn",
+          "observed_at",
+          "source"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "minLength": 1
+          },
+          "from_turn": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "observed_at": {
+            "$ref": "#/$defs/timestamp"
+          },
+          "source": {
+            "enum": [
+              "session_start",
+              "model_switch",
+              "hook_input",
+              "transcript"
+            ]
+          }
+        }
+      }
+    },
+    "developer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Pseudonymous identifier (hash of the configured commit email). Used only to distinguish shared invariants from individual preference."
+        }
+      }
+    },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "root",
+        "id",
+        "checkout_id",
+        "start_head",
+        "start_branch",
+        "branches_observed"
+      ],
+      "properties": {
+        "root": {
+          "type": "string",
+          "description": "Absolute local path; machine-specific and not an identity."
+        },
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Logical repository identity — hash of the normalised origin remote, identical for ssh and https forms. Joins records for one repository across checkouts and machines. Null when there is no origin remote."
+        },
+        "checkout_id": {
+          "type": "string",
+          "description": "Identity of this specific working copy. Mutable telemetry is checkout-scoped and destructive operations act on it, so it must travel with the record: neither storage location nor root path survives export or aggregation."
+        },
+        "start_head": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/objectId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "start_branch": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "branches_observed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true,
+          "description": "Every branch seen in any snapshot. Used by reconciliation to map session -> branch -> PR (many-to-one)."
+        }
+      }
+    },
+    "turns": {
+      "type": "array",
+      "description": "One entry per logical turn, identified by the host's logical_turn_id. A turn holds every prompt event and every stop event belonging to it, each with its own snapshot, because a turn may receive several prompt submissions (type-ahead) and several stop events.",
+      "items": {
+        "$ref": "#/$defs/turn"
+      }
+    },
+    "session_end_snapshots": {
+      "type": "array",
+      "description": "Snapshot taken at each session end. A difference from the last stop event's snapshot means files changed after the agent's last turn but before the session closed. Every entry is a session_end-class snapshot.",
+      "items": {
+        "allOf": [
+          {
+            "$ref": "#/$defs/snapshotRef"
+          },
+          {
+            "properties": {
+              "class": {
+                "const": "session_end"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "transcript": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_path",
+        "stored_path",
+        "stored_sha256",
+        "lines",
+        "redactions",
+        "observed_models",
+        "observed_agent_versions"
+      ],
+      "properties": {
+        "source_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "stored_path": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Redacted, gzipped copy. Null under hash_only policy, when copying is disabled, or when the session never closed cleanly."
+        },
+        "stored_sha256": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lines": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "redactions": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "observed_models": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "observed_agent_versions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "labels": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "developer_label",
+        "labeled_at"
+      ],
+      "properties": {
+        "developer_label": {
+          "enum": [
+            null,
+            "CORRECTION",
+            "FOLLOW_UP",
+            "PREFERENCE",
+            "MIXED",
+            "NONE"
+          ],
+          "description": "Optional human ground truth. null = not yet labelled; NONE = labelled as containing no correction. Canonical enum: LEARNING_PLAN.md references this definition rather than restating it."
+        },
+        "labeled_at": {
+          "$ref": "#/$defs/nullableTimestamp"
+        }
+      }
+    },
+    "reconciliation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outcome",
+        "pull_request",
+        "agent_final_snapshot",
+        "accepted_snapshot",
+        "related_session_ids"
+      ],
+      "properties": {
+        "outcome": {
+          "enum": [
+            "pending",
+            "merged",
+            "closed-unmerged",
+            "abandoned",
+            "superseded",
+            "unknown"
+          ]
+        },
+        "pull_request": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "provider",
+                "id"
+              ],
+              "properties": {
+                "provider": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "agent_final_snapshot": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "snapshot",
+                "resolution"
+              ],
+              "properties": {
+                "snapshot": {
+                  "$ref": "#/$defs/snapshotRef"
+                },
+                "resolution": {
+                  "enum": [
+                    "provisional_last_stop",
+                    "reconciled"
+                  ],
+                  "description": "Which state reconciliation treats as the agent's final output. Provisional until confirmed: a stop event alone never proves finality, and an interrupted or failed turn proves less."
+                }
+              }
+            }
+          ]
+        },
+        "accepted_snapshot": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "tree",
+                "commit"
+              ],
+              "properties": {
+                "tree": {
+                  "$ref": "#/$defs/objectId"
+                },
+                "commit": {
+                  "$ref": "#/$defs/objectId"
+                }
+              }
+            }
+          ],
+          "description": "Merged tree. Post-session correction evidence = diff(agent_final_snapshot.snapshot.tree, accepted_snapshot.tree), restricted to agent-touched and related files. Compare trees, never commit ancestry: rebases and squash merges break ancestry."
+        },
+        "related_session_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Other RepoHone sessions that contributed to the same PR."
+        }
+      }
+    },
+    "extensions": {
+      "type": "object",
+      "description": "Experimental fields. Anything that becomes load-bearing must move into a new schema version."
+    }
+  },
+  "$defs": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "nullableTimestamp": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "objectId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "snapshotRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref",
+        "class",
+        "ordinal",
+        "commit",
+        "tree",
+        "head",
+        "branch",
+        "taken_at",
+        "path",
+        "submodules"
+      ],
+      "properties": {
+        "ref": {
+          "type": "string",
+          "pattern": "^refs/repohone/snapshots/",
+          "description": "Local git ref. Never branch history, never pushed by push/--all/--tags."
+        },
+        "class": {
+          "enum": [
+            "prompt",
+            "stop",
+            "stop_failure",
+            "session_end"
+          ],
+          "description": "Snapshot class. The ref encodes it too, but analysis must not have to parse ref strings."
+        },
+        "ordinal": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Atomically allocated from RepoHone's local state, never derived by counting refs, never reused after a ref is deleted. Append-only: a new event never overwrites an earlier one."
+        },
+        "commit": {
+          "$ref": "#/$defs/objectId"
+        },
+        "tree": {
+          "$ref": "#/$defs/objectId"
+        },
+        "head": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/objectId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "branch": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "taken_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Null at the repository root; otherwise this submodule's path relative to its parent. The ref and objects live in that submodule's own object store."
+        },
+        "submodules": {
+          "type": "array",
+          "description": "A parent tree records a submodule only as a gitlink, so working-tree edits inside one are invisible there. Each initialised submodule is snapshotted separately; a turn's diff is the parent trees plus each submodule's trees, matched by path.",
+          "items": {
+            "$ref": "#/$defs/snapshotRef"
+          }
+        }
+      }
+    },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "sha256",
+        "chars",
+        "redactions"
+      ],
+      "properties": {
+        "text": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Redacted text, or null under hash_only policy."
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256",
+          "description": "Hash of the redacted text."
+        },
+        "chars": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Length of the original text."
+        },
+        "redactions": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "promptEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ordinal",
+        "at",
+        "content",
+        "snapshot"
+      ],
+      "properties": {
+        "ordinal": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1 is the turn's baseline and is immutable; later ordinals are additional submissions."
+        },
+        "at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "content": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/content"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "snapshot": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/snapshotRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Stable working-tree state observed when this submission was received, over the captured file set. Null when no stable state could be captured; capture.errors then says why.",
+          "if": {
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "class": {
+                "const": "prompt"
+              }
+            }
+          }
+        }
+      }
+    },
+    "stopEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ordinal",
+        "at",
+        "kind",
+        "error",
+        "snapshot",
+        "last_assistant_message",
+        "effort",
+        "model",
+        "host_continuation"
+      ],
+      "properties": {
+        "ordinal": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "kind": {
+          "enum": [
+            "stop",
+            "stop_failure"
+          ],
+          "description": "stop = the agent concluded the turn; stop_failure = an API error ended it."
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Host error class for stop_failure (rate_limit, overloaded, max_output_tokens, ...). Turns ended by infrastructure error must be excluded from correction rates rather than counted as agent output. Null for kind=stop, and null on hosts that report no equivalent."
+        },
+        "snapshot": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/snapshotRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Stable working-tree state observed by RepoHone during this lifecycle event. It is NOT guaranteed to precede sibling hooks: hooks on one event run concurrently, so a project-native verification hook may already be running. Capture retries on concurrent mutation of the captured file set and, failing to obtain a stable state, writes null plus a capture.errors entry rather than recording a mixed tree as authoritative evidence."
+        },
+        "last_assistant_message": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/content"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "effort": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Effort level reported by the host for this event, where exposed."
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Model identity for this event where the host exposes it reliably; null otherwise, never inferred."
+        },
+        "host_continuation": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "Host continuation metadata (stop_hook_active): true means this event follows a hook asking the agent to continue. Recorded as host metadata only; RepoHone never uses it as an event ordinal."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "stop"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "snapshot": {
+                "if": {
+                  "type": "object"
+                },
+                "then": {
+                  "properties": {
+                    "class": {
+                      "const": "stop"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "stop_failure"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "snapshot": {
+                "if": {
+                  "type": "object"
+                },
+                "then": {
+                  "properties": {
+                    "class": {
+                      "const": "stop_failure"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "turn": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "logical_turn_id",
+        "cwd",
+        "prompt_events",
+        "stop_events",
+        "workspace_changed_before_turn",
+        "completion",
+        "completion_source",
+        "completed_at",
+        "permission_mode",
+        "model"
+      ],
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Position within this record only. Join across record fragments on logical_turn_id."
+        },
+        "logical_turn_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The host's identity for one user turn, supplied by the adapter — prompt_id on Claude Code, turn_id on Codex. Stable across repeated stop events, so it is the join key, never an event counter. Required: an adapter whose host cannot supply one must derive a deterministic equivalent or disable turn-dependent capture. It must never write an ambiguous record, because the joins this schema relies on would silently break."
+        },
+        "cwd": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "prompt_events": {
+          "type": "array",
+          "minItems": 0,
+          "description": "Every prompt submission belonging to this turn, append-only. More than one means the developer typed ahead while the agent was working and the host merged the submissions into one turn; a queued follow-up is itself correction evidence. Empty only for a turn opened by a stop event with no captured prompt.",
+          "items": {
+            "$ref": "#/$defs/promptEvent"
+          }
+        },
+        "stop_events": {
+          "type": "array",
+          "minItems": 0,
+          "description": "Every stop event belonging to this turn, append-only, each with its own snapshot. More than one occurs when something asks the agent to continue. Empty means the turn never reached a stop: still running, interrupted, or the session died mid-turn.",
+          "items": {
+            "$ref": "#/$defs/stopEvent"
+          }
+        },
+        "workspace_changed_before_turn": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "True if the tree at prompt_events[0] differs from the previous turn's last stop event snapshot — evidence that source changed outside the agent's previous cycle. Null for the first turn, when a snapshot is missing, or when the previous turn never reached a stop, because an interrupted turn has no moment at which the agent stopped and nothing is attributable. Does not by itself prove a human edit."
+        },
+        "completion": {
+          "enum": [
+            "pending",
+            "stop",
+            "stop_failure",
+            "interrupted"
+          ],
+          "description": "stop = the agent concluded; stop_failure = an API error ended it; interrupted = the developer stopped it, so no stop event ever fired; pending = still running, or the session died mid-turn."
+        },
+        "completion_source": {
+          "enum": [
+            null,
+            "observed",
+            "derived"
+          ],
+          "description": "observed = a host event reported this completion. derived = inferred, because on some hosts an interrupted turn is observable only as an absence and is closed at the next snapshot. Which applies to an interruption is host-specific and belongs to the adapter; stop and stop_failure are always observed. Analysis must never treat a derived boundary as an observed one."
+        },
+        "completed_at": {
+          "$ref": "#/$defs/nullableTimestamp"
+        },
+        "permission_mode": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Model that produced this turn where reliably exposed; null otherwise. Never inferred from heuristics to enable segmentation."
+        }
+      }
+    }
+  }
+}

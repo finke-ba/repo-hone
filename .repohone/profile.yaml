@@ -1,0 +1,6 @@
+profile_version: 1
+requires_core: ">=0.4,<0.5"
+reasoning_egress: interactive
+reasoning_model: opus
+content_policy: redacted
+tool_capture: true

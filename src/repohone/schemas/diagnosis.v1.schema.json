@@ -1,0 +1,559 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "repohone.diagnosis/v1",
+  "title": "RepoHone diagnosis record",
+  "description": "Pass 1 of retrospective reasoning (LEARNING_PLAN 11): cause and required property only. A diagnosis is a hypothesis, never a fact, and never names a mechanism - the repository has not been surveyed yet (Phase 4) and selection is Phase 5. Analysis output, kept in separate records from the immutable session evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_version",
+    "contract_version",
+    "diagnosis_id",
+    "session_id",
+    "checkout_id",
+    "created_at",
+    "pass",
+    "outcome",
+    "fingerprint",
+    "recurrence",
+    "root_cause",
+    "confidence",
+    "required_property",
+    "corrective_turn",
+    "evidence_for",
+    "evidence_against",
+    "risks",
+    "engine",
+    "budget",
+    "evidence_refs",
+    "failure",
+    "confidence_adjusted"
+  ],
+  "properties": {
+    "schema": {
+      "const": "repohone.diagnosis/v1"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "contract_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "diagnosis_id": {
+      "type": "string",
+      "pattern": "^dx_[0-9a-f]{8,}$"
+    },
+    "session_id": {
+      "type": "string",
+      "pattern": "^rh_[0-9a-f]{8,}$"
+    },
+    "checkout_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "repository_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The session's repository, copied in when the diagnosis is written (contract 1.24) so recurrence reads the diagnosis alone. Null when the checkout has no remote."
+    },
+    "developer_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The session's developer, copied in with repository_id (contract 1.24). Null when Git names no user.email."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "pass": {
+      "const": "diagnosis"
+    },
+    "outcome": {
+      "enum": [
+        "SUCCESS",
+        "INSUFFICIENT_EVIDENCE",
+        "NO_ACTIONABLE_PROJECT_IMPROVEMENT",
+        "MODEL_UNAVAILABLE",
+        "INTERRUPTED",
+        "INVALID_OUTPUT",
+        "VALIDATION_REJECTED"
+      ],
+      "description": "ARCHITECTURE 12.3. Exactly one terminal state. INSUFFICIENT_EVIDENCE and NO_ACTIONABLE_PROJECT_IMPROVEMENT are successful outcomes, not errors."
+    },
+    "root_cause": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "class",
+            "summary"
+          ],
+          "properties": {
+            "class": {
+              "enum": [
+                "MISSING_GUARDRAIL",
+                "MISSING_CONTEXT",
+                "MISSED_EXISTING_CAPABILITY",
+                "WRONG_PROJECT_PATTERN",
+                "VERIFICATION_GAP",
+                "TOOLING_FRICTION",
+                "BAD_GUARDRAIL",
+                "INTENT_MISMATCH",
+                "AGENT_REASONING_ERROR",
+                "NEW_REQUIREMENT"
+              ],
+              "description": "LEARNING_PLAN 6. The taxonomy evolves only when beta evidence shows a missing category."
+            },
+            "summary": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 600
+            }
+          }
+        }
+      ]
+    },
+    "confidence": {
+      "enum": [
+        null,
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "required_property": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 600,
+      "description": "The property the project is missing, stated as a property of the project - never a mechanism that would provide it. 'handlers must not import persistence directly', not 'add an import-linter rule'."
+    },
+    "evidence_for": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 600
+      }
+    },
+    "evidence_against": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 600
+      },
+      "description": "Load-bearing (LEARNING_PLAN 11): a retrospective that cannot articulate contradicting evidence will manufacture proposals. An empty list is an assertion that none was found, not an excuse to omit the question."
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 600
+      }
+    },
+    "engine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "model",
+        "isolated"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "isolated": {
+          "type": "boolean",
+          "description": "ARCHITECTURE 12.1 - true when reasoning ran outside the developer's active coding context."
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_tokens",
+        "max_items",
+        "items_sent",
+        "estimated_tokens",
+        "items_skipped"
+      ],
+      "properties": {
+        "max_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Bytes of model input, not provider tokens. The v1 field name predates the correction; a token is at least one byte, so the value is always under ARCHITECTURE 12's token maximum."
+        },
+        "max_items": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "items_sent": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "estimated_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Bytes of model input, not provider tokens. The v1 field name predates the correction; a token is at least one byte, so the value is always under ARCHITECTURE 12's token maximum."
+        },
+        "items_skipped": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Evidence that was resolved but not sent, because it did not fit the ceiling. Non-zero means the diagnosis saw less than the session offered."
+        }
+      },
+      "description": "ARCHITECTURE 12. Whichever limit is reached first applies; insufficient evidence within budget is INSUFFICIENT_EVIDENCE, never automatic context expansion."
+    },
+    "evidence_refs": {
+      "type": "array",
+      "description": "What was sent, by local reference. The evidence itself stays in the session record.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "ref"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "rule_statement",
+              "correction",
+              "consulted",
+              "diff",
+              "history",
+              "tool_failure",
+              "project_instruction",
+              "turn_prompt",
+              "assistant_message"
+            ]
+          },
+          "ref": {
+            "type": "string",
+            "minLength": 1
+          },
+          "estimated_tokens": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Bytes of model input, not provider tokens. The v1 field name predates the correction; a token is at least one byte, so the value is always under ARCHITECTURE 12's token maximum."
+          }
+        }
+      }
+    },
+    "history": {
+      "type": "array",
+      "description": "Earlier commits, mined by `repohone bootstrap`, that the model judged the same problem as this session (contract 1.24). Only commits the session started from are offered. Empty unless the outcome is SUCCESS.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "candidate_id",
+          "source",
+          "commit",
+          "statement"
+        ],
+        "properties": {
+          "candidate_id": {
+            "type": "string",
+            "pattern": "^cand_[0-9a-f]{12}$"
+          },
+          "source": {
+            "enum": [
+              "revert",
+              "fixup"
+            ]
+          },
+          "commit": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{4,40}$"
+          },
+          "statement": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "failure": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            }
+          }
+        }
+      ]
+    },
+    "fingerprint": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "fingerprint_id",
+            "area",
+            "behavior",
+            "created"
+          ],
+          "properties": {
+            "fingerprint_id": {
+              "type": "string",
+              "pattern": "^fp_[0-9a-f]{8,}$"
+            },
+            "area": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "behavior": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "created": {
+              "type": "boolean",
+              "description": "False when this diagnosis joined an existing fingerprint. Uncontrolled creation of near-duplicates would destroy recurrence measurement (LEARNING_PLAN 9)."
+            }
+          }
+        }
+      ],
+      "description": "Which recurring repository-specific problem this is, as distinct from what kind of problem the taxonomy names."
+    },
+    "recurrence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sessions",
+        "checkouts",
+        "developers",
+        "known_fingerprints",
+        "scope"
+      ],
+      "properties": {
+        "sessions": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Distinct sessions this fingerprint has been seen in, including this one. 1 is a single observation and weak grounds for a project-level claim."
+        },
+        "checkouts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "developers": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Distinct developers observed hitting it. 1 means the evidence cannot yet distinguish one person's habit from a team-wide pattern (LEARNING_PLAN 8)."
+        },
+        "known_fingerprints": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "scope": {
+          "enum": [
+            "local-checkouts"
+          ],
+          "description": "How far recurrence was counted. Only checkouts on this machine are readable, so this is local recurrence, never team-wide."
+        },
+        "complete": {
+          "type": "boolean",
+          "description": "False when part of the local history could not be read, so the counts are a floor. Absent in records written before contract 1.22, which were only written from complete history."
+        },
+        "historical": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Distinct earlier commits (Phase 6 reverts and fix-ups) that a diagnosis of this fingerprint judged the same problem. Absent before contract 1.24."
+        }
+      }
+    },
+    "corrective_turn": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "description": "The turn containing the developer's correction, identified rather than inferred. Phase 5 validation needs a real correction boundary: two unrelated turns look exactly like a correction and its repair, and validating against a change nobody made certifies nothing. Null means authentic validation is unavailable for this session."
+    },
+    "confidence_adjusted": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "to",
+        "reason"
+      ],
+      "description": "Set when Core lowered the model's stated confidence, with why. Recorded rather than applied silently: a reader must be able to see that the certainty on this diagnosis is Core's, not the model's.",
+      "properties": {
+        "from": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "to": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 600
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "SUCCESS"
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "properties": {
+          "root_cause": {
+            "type": "object"
+          },
+          "required_property": {
+            "type": "string",
+            "minLength": 1
+          },
+          "confidence": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "failure": {
+            "type": "null"
+          },
+          "fingerprint": {
+            "type": "object"
+          }
+        },
+        "description": "A successful diagnosis carries a cause and a property; anything else is not a diagnosis."
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "not": {
+              "const": "SUCCESS"
+            }
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "properties": {
+          "root_cause": {
+            "type": "null"
+          },
+          "required_property": {
+            "type": "null"
+          },
+          "confidence": {
+            "type": "null"
+          },
+          "fingerprint": {
+            "type": "null"
+          },
+          "corrective_turn": {
+            "type": "null"
+          },
+          "history": {
+            "const": []
+          }
+        },
+        "description": "A non-SUCCESS job never leaves a partial diagnosis behind (ARCHITECTURE 12.3: partial output is never a proposal)."
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "contract_version": {
+            "not": {
+              "enum": [
+                "1.7",
+                "1.8",
+                "1.9",
+                "1.10",
+                "1.11",
+                "1.12",
+                "1.13",
+                "1.14",
+                "1.15",
+                "1.16",
+                "1.17",
+                "1.18",
+                "1.19",
+                "1.20",
+                "1.21",
+                "1.22",
+                "1.23"
+              ]
+            }
+          }
+        },
+        "required": [
+          "contract_version"
+        ]
+      },
+      "then": {
+        "required": [
+          "repository_id",
+          "developer_id",
+          "history"
+        ]
+      },
+      "description": "From contract 1.24 a diagnosis names its own repository and developer and any history it links; older ones leave the ids to the session record."
+    }
+  ]
+}

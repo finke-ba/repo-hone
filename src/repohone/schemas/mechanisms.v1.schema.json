@@ -1,0 +1,248 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "repohone.mechanisms/v1",
+  "title": "RepoHone native mechanism inventory",
+  "description": "Phase 4 answers what the repository ALREADY provides that could carry a required property. It never proposes RepoHone-specific enforcement: RepoHone does not own normal enforcement (ARCHITECTURE 25), so every mechanism here belongs to the project or its ecosystem. Selection is Phase 5.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_version",
+    "contract_version",
+    "checkout_id",
+    "repository_id",
+    "discovered_at",
+    "mechanisms",
+    "probe",
+    "discovery_errors"
+  ],
+  "properties": {
+    "schema": {
+      "const": "repohone.mechanisms/v1"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "contract_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "checkout_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "repository_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "discovered_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ran",
+        "working_tree_unchanged"
+      ],
+      "properties": {
+        "ran": {
+          "type": "boolean",
+          "description": "Probing executes the project's own tooling, so it is opt-in per run."
+        },
+        "working_tree_unchanged": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "ARCHITECTURE 12.2 - a probe runs against a detached checkout in scratch and must leave the developer's working tree untouched. False is a RepoHone defect, never a project finding."
+        },
+        "snapshot_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "mechanisms": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "tier",
+          "argv",
+          "invocation",
+          "deterministic",
+          "evidence",
+          "carries",
+          "enforced_in",
+          "cost"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^mech_[0-9a-f]{8,}$"
+          },
+          "kind": {
+            "enum": [
+              "test",
+              "lint",
+              "format",
+              "types",
+              "architecture",
+              "build",
+              "ci",
+              "vcs-hook",
+              "agent-hook",
+              "agent-instruction",
+              "agent-skill",
+              "script"
+            ],
+            "description": "What the mechanism is, not what it would be used for."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "tier": {
+            "enum": [
+              "existing-project",
+              "existing-ecosystem",
+              "project-owned-custom"
+            ],
+            "description": "ARCHITECTURE 3, in preference order. `existing-project` means configured in this repository; `existing-ecosystem` means available to it but not configured here. `repohone-runtime` is deliberately absent: it is a last resort and never a discovered mechanism."
+          },
+          "invocation": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Human-readable rendering of argv, for display only. Never executed."
+          },
+          "config_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "deterministic": {
+            "type": "boolean",
+            "description": "ARCHITECTURE 3 prefers deterministic mechanisms over probabilistic ones."
+          },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "description": "Why RepoHone believes this exists. Discovery is observation, not inference."
+          },
+          "carries": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "deterministic-test",
+                "static-rule",
+                "architecture-constraint",
+                "type-constraint",
+                "formatting",
+                "workflow-constraint",
+                "context-discovery",
+                "agent-instruction",
+                "probabilistic-review",
+                "documentation"
+              ]
+            },
+            "description": "Which improvement classes (LEARNING_PLAN 12) this mechanism could carry. Phase 5 matches these against the required property."
+          },
+          "cost": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "probed",
+              "duration_ms",
+              "exit_code"
+            ],
+            "properties": {
+              "probed": {
+                "type": "boolean"
+              },
+              "duration_ms": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "exit_code": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 300
+              }
+            }
+          },
+          "argv": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
+            "description": "The executable form. An argv list, never a shell string: a filename is repository-controlled content and must never be concatenated into a command line."
+          },
+          "enforced_in": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "ci",
+                "vcs-hook",
+                "agent-hook"
+              ]
+            },
+            "description": "Where this mechanism is actually wired to run. Empty means configured but not observed to be enforced anywhere - which is what answers 'why didn't the existing mechanism already help?' (LEARNING_PLAN 11, pass 2)."
+          },
+          "config_excerpt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1200,
+            "description": "Bounded excerpt of the mechanism's own configuration, so a proposal can fit what it already covers rather than guessing."
+          }
+        }
+      }
+    },
+    "discovery_errors": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 300
+      },
+      "description": "Detectors that failed. A detector bug must not read as 'this repository has no such mechanism'."
+    }
+  }
+}
